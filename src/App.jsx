@@ -1,7 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { auth } from './firebase';
+import { saveUserScore, getUserRecord } from './services/scoreService';
+import Auth from './components/Auth';
+import Leaderboard from './components/Leaderboard';
 import "./App.css";
 
 function App() {
+  // Kullanıcı ve authentication state'leri
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [userRecord, setUserRecord] = useState(null);
+  
+  // Oyun state'leri
   const [level, setLevel] = useState(1);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(10);
@@ -12,6 +23,41 @@ function App() {
   const [gameStarted, setGameStarted] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [showResult, setShowResult] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [gameOverMessage, setGameOverMessage] = useState('');
+
+  // Authentication state değişikliklerini dinle
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+      
+      // Kullanıcı girmiş ve henüz rekoru yüklenmemişse
+      if (currentUser && !userRecord) {
+        try {
+          const record = await getUserRecord(currentUser.uid);
+          setUserRecord(record);
+        } catch (error) {
+          console.error('Kullanıcı rekoru yüklenirken hata:', error);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [userRecord]);
+
+  // Çıkış yap
+  const handleSignOut = async () => {
+    try {
+      await signOut(auth);
+      // State'leri temizle
+      setUser(null);
+      setUserRecord(null);
+      resetGame();
+    } catch (error) {
+      console.error('Çıkış yapılırken hata:', error);
+    }
+  };
 
   // Matris boyutunu seviyeye göre hesapla (her 5 seviyede bir artır, maksimum 6x6)
   const getMatrixSize = (level) => {
@@ -85,6 +131,37 @@ function App() {
     setDifferentColorIndex(-1);
     setSelectedIndex(-1);
     setShowResult(false);
+    setGameOverMessage('');
+  };
+
+  // Oyun bittiğinde skor kaydet
+  const handleGameOver = async (finalScore, finalLevel) => {
+    if (!user) return;
+
+    try {
+      const result = await saveUserScore(
+        user.uid,
+        user.displayName || user.email,
+        finalScore,
+        finalLevel
+      );
+
+      if (result.isNewRecord) {
+        if (result.previousRecord === 0) {
+          setGameOverMessage(`İlk skorunuz kaydedildi!`);
+        } else {
+          setGameOverMessage(`Yeni rekor! Önceki rekorunuz: ${result.previousRecord}`);
+        }
+        // Kullanıcı rekorunu güncelle
+        const newRecord = await getUserRecord(user.uid);
+        setUserRecord(newRecord);
+      } else {
+        setGameOverMessage(`En yüksek skorunuz: ${result.currentRecord}`);
+      }
+    } catch (error) {
+      console.error('Skor kaydedilirken hata:', error);
+      setGameOverMessage('Skor kaydedilemedi.');
+    }
   };
 
   // Kare tıklama
@@ -104,8 +181,9 @@ function App() {
       }, 800);
     } else {
       // Yanlış tahmin
-      setTimeout(() => {
+      setTimeout(async () => {
         setGameOver(true);
+        await handleGameOver(score, level);
       }, 2000);
     }
   };
@@ -120,9 +198,13 @@ function App() {
       }, 1000);
       return () => clearTimeout(timer);
     } else {
-      setGameOver(true);
+      // Süre doldu
+      (async () => {
+        setGameOver(true);
+        await handleGameOver(score, level);
+      })();
     }
-  }, [timeLeft, gameStarted, gameOver, showResult]);
+  }, [timeLeft, gameStarted, gameOver, showResult, score, level]);
 
   // Oyun başlangıcında ilk seviyeyi başlat
   useEffect(() => {
@@ -131,26 +213,65 @@ function App() {
     }
   }, [gameStarted, colors.length, startNewGame]);
 
+  // Authentication bekleme ekranı
+  if (authLoading) {
+    return (
+      <div className="app">
+        <div className="loading-screen">
+          <h1>Yükleniyor...</h1>
+        </div>
+      </div>
+    );
+  }
+
+  // Kullanıcı giriş yapmamışsa authentication ekranını göster
+  if (!user) {
+    return <Auth onAuthSuccess={() => {}} />;
+  }
+
   const matrixSize = getMatrixSize(level);
 
   return (
     <div className="app">
       <div className="game-header">
-        <h1>Renk Tonu Tahmin Oyunu</h1>
-        <div className="game-info">
-          <div className="info-item">
-            <span className="label">Seviye:</span>
-            <span className="value">{level}</span>
-          </div>
-          <div className="info-item">
-            <span className="label">Skor:</span>
-            <span className="value">{score}</span>
-          </div>
-          <div className="info-item">
-            <span className="label">Süre:</span>
-            <span className="value timer">{timeLeft}s</span>
+        <div className="header-left">
+          <h1>Renk Tonu Tahmin Oyunu</h1>
+          <div className="user-info">
+            Hoş geldin, {user.displayName || user.email}!
           </div>
         </div>
+        <div className="header-right">
+          <button 
+            onClick={() => setShowLeaderboard(true)} 
+            className="leaderboard-btn"
+          >
+            🏆 Liderlik Tablosu
+          </button>
+          <button onClick={handleSignOut} className="signout-btn">
+            Çıkış Yap
+          </button>
+        </div>
+      </div>
+
+      <div className="game-info">
+        <div className="info-item">
+          <span className="label">Seviye:</span>
+          <span className="value">{level}</span>
+        </div>
+        <div className="info-item">
+          <span className="label">Skor:</span>
+          <span className="value">{score}</span>
+        </div>
+        <div className="info-item">
+          <span className="label">Süre:</span>
+          <span className="value timer">{timeLeft}s</span>
+        </div>
+        {userRecord && (
+          <div className="info-item">
+            <span className="label">En Yüksek:</span>
+            <span className="value record">{userRecord.highScore}</span>
+          </div>
+        )}
       </div>
 
       {!gameStarted && !gameOver && (
@@ -168,9 +289,22 @@ function App() {
           <h2>Oyun Bitti!</h2>
           <p>Skorunuz: {score}</p>
           <p>Ulaştığınız Seviye: {level}</p>
-          <button onClick={resetGame} className="restart-button">
-            Yeniden Başla
-          </button>
+          {gameOverMessage && (
+            <div className={`game-over-message ${gameOverMessage.includes('rekor') ? 'new-record' : ''}`}>
+              {gameOverMessage}
+            </div>
+          )}
+          <div className="game-over-buttons">
+            <button onClick={resetGame} className="restart-button">
+              Yeniden Başla
+            </button>
+            <button 
+              onClick={() => setShowLeaderboard(true)} 
+              className="leaderboard-button"
+            >
+              🏆 Liderlik Tablosu
+            </button>
+          </div>
         </div>
       )}
 
@@ -210,6 +344,13 @@ function App() {
             </p>
           </div>
         </div>
+      )}
+
+      {showLeaderboard && (
+        <Leaderboard 
+          currentUser={user}
+          onClose={() => setShowLeaderboard(false)}
+        />
       )}
     </div>
   );
