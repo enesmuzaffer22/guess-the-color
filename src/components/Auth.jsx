@@ -1,49 +1,53 @@
-import { useState } from 'react';
-import { 
-  createUserWithEmailAndPassword, 
+import { useState } from "react";
+import {
+  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  updateProfile 
-} from 'firebase/auth';
-import { auth } from '../firebase';
-import './Auth.css';
+  updateProfile,
+} from "firebase/auth";
+import { auth } from "../firebase";
+import "./Auth.css";
 
 const Auth = ({ onAuthSuccess }) => {
   const [isLogin, setIsLogin] = useState(true);
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    displayName: ''
+    email: "",
+    password: "",
+    displayName: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
 
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [e.target.name]: e.target.value,
     });
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
+    setError("");
 
     try {
       if (isLogin) {
-        // Giriş yap
-        await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      } else {
-        // Kayıt ol
-        const userCredential = await createUserWithEmailAndPassword(
-          auth, 
-          formData.email, 
+        // Sign in
+        await signInWithEmailAndPassword(
+          auth,
+          formData.email,
           formData.password
         );
-        
-        // Kullanıcı adını güncelle
+      } else {
+        // Sign up
+        const userCredential = await createUserWithEmailAndPassword(
+          auth,
+          formData.email,
+          formData.password
+        );
+
+        // Update display name
         await updateProfile(userCredential.user, {
-          displayName: formData.displayName
+          displayName: formData.displayName,
         });
       }
       onAuthSuccess();
@@ -56,89 +60,89 @@ const Auth = ({ onAuthSuccess }) => {
 
   const getErrorMessage = (errorCode) => {
     switch (errorCode) {
-      case 'auth/weak-password':
-        return 'Şifre en az 6 karakter olmalıdır.';
-      case 'auth/email-already-in-use':
-        return 'Bu e-posta adresi zaten kullanımda.';
-      case 'auth/invalid-email':
-        return 'Geçersiz e-posta adresi.';
-      case 'auth/user-not-found':
-        return 'Kullanıcı bulunamadı.';
-      case 'auth/wrong-password':
-        return 'Yanlış şifre.';
-      case 'auth/invalid-api-key':
-        return 'Firebase API anahtarı geçersiz. Lütfen .env dosyasını kontrol edin.';
-      case 'auth/configuration-not-found':
-        return 'Firebase konfigürasyonu bulunamadı.';
-      case 'auth/project-not-found':
-        return 'Firebase projesi bulunamadı.';
-      case 'auth/quota-exceeded':
-        return 'Günlük kullanım kotası aşıldı.';
-      case 'auth/network-request-failed':
-        return 'Ağ bağlantısı hatası. İnternet bağlantınızı kontrol edin.';
-      case 'auth/operation-not-allowed':
-        return 'Email/Password girişi etkinleştirilmemiş. Firebase Console\'dan Authentication > Sign-in method > Email/Password\'u aktif edin.';
+      case "auth/weak-password":
+        return "Password must be at least 6 characters.";
+      case "auth/email-already-in-use":
+        return "This email address is already in use.";
+      case "auth/invalid-email":
+        return "Invalid email address.";
+      case "auth/user-not-found":
+        return "User not found.";
+      case "auth/wrong-password":
+        return "Wrong password.";
+      case "auth/invalid-api-key":
+        return "Firebase API key is invalid. Please check your .env file.";
+      case "auth/configuration-not-found":
+        return "Firebase configuration not found.";
+      case "auth/project-not-found":
+        return "Firebase project not found.";
+      case "auth/quota-exceeded":
+        return "Daily usage quota exceeded.";
+      case "auth/network-request-failed":
+        return "Network connection error. Please check your internet connection.";
+      case "auth/operation-not-allowed":
+        return "Email/Password sign-in is not enabled. Please enable Email/Password in Firebase Console > Authentication > Sign-in method.";
       default:
-        return `Bir hata oluştu: ${errorCode}. Lütfen konsolu kontrol edin.`;
+        return `An error occurred: ${errorCode}. Please check the console.`;
     }
   };
 
   return (
     <div className="auth-container">
       <div className="auth-form">
-        <h2>{isLogin ? 'Giriş Yap' : 'Kayıt Ol'}</h2>
-        
+        <h2>{isLogin ? "Sign In" : "Sign Up"}</h2>
+
         {error && <div className="error-message">{error}</div>}
-        
+
         <form onSubmit={handleSubmit}>
           {!isLogin && (
             <div className="form-group">
               <input
                 type="text"
                 name="displayName"
-                placeholder="Kullanıcı Adı"
+                placeholder="Display Name"
                 value={formData.displayName}
                 onChange={handleInputChange}
                 required
               />
             </div>
           )}
-          
+
           <div className="form-group">
             <input
               type="email"
               name="email"
-              placeholder="E-posta"
+              placeholder="Email"
               value={formData.email}
               onChange={handleInputChange}
               required
             />
           </div>
-          
+
           <div className="form-group">
             <input
               type="password"
               name="password"
-              placeholder="Şifre"
+              placeholder="Password"
               value={formData.password}
               onChange={handleInputChange}
               required
             />
           </div>
-          
+
           <button type="submit" disabled={loading} className="auth-button">
-            {loading ? 'Yükleniyor...' : (isLogin ? 'Giriş Yap' : 'Kayıt Ol')}
+            {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
           </button>
         </form>
-        
+
         <p className="auth-switch">
-          {isLogin ? "Hesabınız yok mu? " : "Zaten hesabınız var mı? "}
-          <button 
-            type="button" 
+          {isLogin ? "Don't have an account? " : "Already have an account? "}
+          <button
+            type="button"
             onClick={() => setIsLogin(!isLogin)}
             className="switch-button"
           >
-            {isLogin ? 'Kayıt Ol' : 'Giriş Yap'}
+            {isLogin ? "Sign Up" : "Sign In"}
           </button>
         </p>
       </div>
@@ -146,4 +150,4 @@ const Auth = ({ onAuthSuccess }) => {
   );
 };
 
-export default Auth; 
+export default Auth;

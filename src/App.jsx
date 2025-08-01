@@ -1,18 +1,18 @@
 import { useState, useEffect, useCallback } from "react";
-import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { auth } from './firebase';
-import { saveUserScore, getUserRecord } from './services/scoreService';
-import Auth from './components/Auth';
-import Leaderboard from './components/Leaderboard';
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "./firebase";
+import { saveUserScore, getUserRecord } from "./services/scoreService";
+import Auth from "./components/Auth";
+import Leaderboard from "./components/Leaderboard";
 import "./App.css";
 
 function App() {
-  // Kullanıcı ve authentication state'leri
+  // User and authentication states
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [userRecord, setUserRecord] = useState(null);
-  
-  // Oyun state'leri
+
+  // Game states
   const [level, setLevel] = useState(1);
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(10);
@@ -24,21 +24,21 @@ function App() {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [showResult, setShowResult] = useState(false);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [gameOverMessage, setGameOverMessage] = useState('');
+  const [gameOverMessage, setGameOverMessage] = useState("");
 
-  // Authentication state değişikliklerini dinle
+  // Listen to authentication state changes
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setAuthLoading(false);
-      
-      // Kullanıcı girmiş ve henüz rekoru yüklenmemişse
+
+      // If user is logged in and record is not loaded yet
       if (currentUser && !userRecord) {
         try {
           const record = await getUserRecord(currentUser.uid);
           setUserRecord(record);
         } catch (error) {
-          console.error('Kullanıcı rekoru yüklenirken hata:', error);
+          console.error("Error loading user record:", error);
         }
       }
     });
@@ -46,25 +46,25 @@ function App() {
     return () => unsubscribe();
   }, [userRecord]);
 
-  // Çıkış yap
+  // Sign out
   const handleSignOut = async () => {
     try {
       await signOut(auth);
-      // State'leri temizle
+      // Clear states
       setUser(null);
       setUserRecord(null);
       resetGame();
     } catch (error) {
-      console.error('Çıkış yapılırken hata:', error);
+      console.error("Error during sign out:", error);
     }
   };
 
-  // Matris boyutunu seviyeye göre hesapla (her 5 seviyede bir artır, maksimum 6x6)
+  // Calculate matrix size based on level (increase every 5 levels, maximum 6x6)
   const getMatrixSize = (level) => {
     return Math.min(6, 3 + Math.floor((level - 1) / 5));
   };
 
-  // Rastgele renk üret
+  // Generate random color
   const generateRandomColor = () => {
     const hue = Math.floor(Math.random() * 360);
     const saturation = 50 + Math.floor(Math.random() * 50); // 50-100%
@@ -72,11 +72,11 @@ function App() {
     return { hue, saturation, lightness };
   };
 
-  // Rengin farklı tonunu üret
+  // Generate different tone of the color
   const generateSimilarColor = (baseColor) => {
     const { hue, saturation, lightness } = baseColor;
-    // Hafif ton farkı oluştur
-    const toneDifference = 5 + Math.floor(Math.random() * 10); // 5-15 arası fark
+    // Create slight tone difference
+    const toneDifference = 5 + Math.floor(Math.random() * 10); // 5-15 difference
     const newLightness = Math.max(
       20,
       Math.min(
@@ -88,12 +88,12 @@ function App() {
     return { hue, saturation, lightness: newLightness };
   };
 
-  // HSL'yi CSS formatına çevir
+  // Convert HSL to CSS format
   const hslToString = (color) => {
     return `hsl(${color.hue}, ${color.saturation}%, ${color.lightness}%)`;
   };
 
-  // Yeni oyun başlat
+  // Start new game
   const startNewGame = useCallback(
     (newLevel = level) => {
       const matrixSize = getMatrixSize(newLevel);
@@ -120,7 +120,7 @@ function App() {
     [level]
   );
 
-  // Oyunu başlat/yeniden başlat
+  // Start/restart game
   const resetGame = () => {
     setLevel(1);
     setScore(0);
@@ -131,10 +131,10 @@ function App() {
     setDifferentColorIndex(-1);
     setSelectedIndex(-1);
     setShowResult(false);
-    setGameOverMessage('');
+    setGameOverMessage("");
   };
 
-  // Oyun bittiğinde skor kaydet
+  // Save score when game ends
   const handleGameOver = async (finalScore, finalLevel) => {
     if (!user) return;
 
@@ -148,23 +148,25 @@ function App() {
 
       if (result.isNewRecord) {
         if (result.previousRecord === 0) {
-          setGameOverMessage(`İlk skorunuz kaydedildi!`);
+          setGameOverMessage(`Your first score has been saved!`);
         } else {
-          setGameOverMessage(`Yeni rekor! Önceki rekorunuz: ${result.previousRecord}`);
+          setGameOverMessage(
+            `New record! Your previous record: ${result.previousRecord}`
+          );
         }
-        // Kullanıcı rekorunu güncelle
+        // Update user record
         const newRecord = await getUserRecord(user.uid);
         setUserRecord(newRecord);
       } else {
-        setGameOverMessage(`En yüksek skorunuz: ${result.currentRecord}`);
+        setGameOverMessage(`Your highest score: ${result.currentRecord}`);
       }
     } catch (error) {
-      console.error('Skor kaydedilirken hata:', error);
-      setGameOverMessage('Skor kaydedilemedi.');
+      console.error("Error saving score:", error);
+      setGameOverMessage("Score could not be saved.");
     }
   };
 
-  // Kare tıklama
+  // Cell click
   const handleCellClick = (index) => {
     if (gameOver || !gameStarted || showResult) return;
 
@@ -172,7 +174,7 @@ function App() {
     setShowResult(true);
 
     if (index === differentColorIndex) {
-      // Doğru tahmin
+      // Correct guess
       const newLevel = level + 1;
       setScore(score + 1);
       setLevel(newLevel);
@@ -180,7 +182,7 @@ function App() {
         startNewGame(newLevel);
       }, 800);
     } else {
-      // Yanlış tahmin
+      // Wrong guess
       setTimeout(async () => {
         setGameOver(true);
         await handleGameOver(score, level);
@@ -198,7 +200,7 @@ function App() {
       }, 1000);
       return () => clearTimeout(timer);
     } else {
-      // Süre doldu
+      // Time's up
       (async () => {
         setGameOver(true);
         await handleGameOver(score, level);
@@ -206,25 +208,25 @@ function App() {
     }
   }, [timeLeft, gameStarted, gameOver, showResult, score, level]);
 
-  // Oyun başlangıcında ilk seviyeyi başlat
+  // Start first level at game beginning
   useEffect(() => {
     if (gameStarted && colors.length === 0) {
       startNewGame();
     }
   }, [gameStarted, colors.length, startNewGame]);
 
-  // Authentication bekleme ekranı
+  // Authentication loading screen
   if (authLoading) {
     return (
       <div className="app">
         <div className="loading-screen">
-          <h1>Yükleniyor...</h1>
+          <h1>Loading...</h1>
         </div>
       </div>
     );
   }
 
-  // Kullanıcı giriş yapmamışsa authentication ekranını göster
+  // Show authentication screen if user is not logged in
   if (!user) {
     return <Auth onAuthSuccess={() => {}} />;
   }
@@ -235,40 +237,40 @@ function App() {
     <div className="app">
       <div className="game-header">
         <div className="header-left">
-          <h1>Renk Tonu Tahmin Oyunu</h1>
+          <h1>Color Tone Guessing Game</h1>
           <div className="user-info">
-            Hoş geldin, {user.displayName || user.email}!
+            Welcome, {user.displayName || user.email}!
           </div>
         </div>
         <div className="header-right">
-          <button 
-            onClick={() => setShowLeaderboard(true)} 
+          <button
+            onClick={() => setShowLeaderboard(true)}
             className="leaderboard-btn"
           >
-            🏆 Liderlik Tablosu
+            🏆 Leaderboard
           </button>
           <button onClick={handleSignOut} className="signout-btn">
-            Çıkış Yap
+            Sign Out
           </button>
         </div>
       </div>
 
       <div className="game-info">
         <div className="info-item">
-          <span className="label">Seviye:</span>
+          <span className="label">Level:</span>
           <span className="value">{level}</span>
         </div>
         <div className="info-item">
-          <span className="label">Skor:</span>
+          <span className="label">Score:</span>
           <span className="value">{score}</span>
         </div>
         <div className="info-item">
-          <span className="label">Süre:</span>
+          <span className="label">Time:</span>
           <span className="value timer">{timeLeft}s</span>
         </div>
         {userRecord && (
           <div className="info-item">
-            <span className="label">En Yüksek:</span>
+            <span className="label">Highest:</span>
             <span className="value record">{userRecord.highScore}</span>
           </div>
         )}
@@ -276,33 +278,39 @@ function App() {
 
       {!gameStarted && !gameOver && (
         <div className="game-start">
-          <h2>Hoş Geldiniz!</h2>
-          <p>Farklı tondaki rengi bulun. Her seviyede 10 saniyeniz var!</p>
+          <h2>Welcome!</h2>
+          <p>
+            Find the different colored tone. You have 10 seconds for each level!
+          </p>
           <button onClick={() => setGameStarted(true)} className="start-button">
-            Oyunu Başlat
+            Start Game
           </button>
         </div>
       )}
 
       {gameOver && (
         <div className="game-over">
-          <h2>Oyun Bitti!</h2>
-          <p>Skorunuz: {score}</p>
-          <p>Ulaştığınız Seviye: {level}</p>
+          <h2>Game Over!</h2>
+          <p>Your Score: {score}</p>
+          <p>Level Reached: {level}</p>
           {gameOverMessage && (
-            <div className={`game-over-message ${gameOverMessage.includes('rekor') ? 'new-record' : ''}`}>
+            <div
+              className={`game-over-message ${
+                gameOverMessage.includes("record") ? "new-record" : ""
+              }`}
+            >
               {gameOverMessage}
             </div>
           )}
           <div className="game-over-buttons">
             <button onClick={resetGame} className="restart-button">
-              Yeniden Başla
+              Restart
             </button>
-            <button 
-              onClick={() => setShowLeaderboard(true)} 
+            <button
+              onClick={() => setShowLeaderboard(true)}
               className="leaderboard-button"
             >
-              🏆 Liderlik Tablosu
+              🏆 Leaderboard
             </button>
           </div>
         </div>
@@ -339,7 +347,7 @@ function App() {
           </div>
           <div className="game-instructions">
             <p>
-              Farklı tondaki rengi bulun! Matris boyutu: {matrixSize}x
+              Find the different colored tone! Matrix size: {matrixSize}x
               {matrixSize}
             </p>
           </div>
@@ -347,7 +355,7 @@ function App() {
       )}
 
       {showLeaderboard && (
-        <Leaderboard 
+        <Leaderboard
           currentUser={user}
           onClose={() => setShowLeaderboard(false)}
         />
